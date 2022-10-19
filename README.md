@@ -1,5 +1,11 @@
 # Assembly-Project-01
 
+O objetivo desta atividade é desenvolver um programa que faça as 4 operações 
+aritméticas, com números de um digito. O projeto poderá ser desenvolvido em 
+dupla. 
+ 
+ATIVIDADE 
+
 Características do programa: 
  
   As operações de multiplicação e divisão não poderão utilizar as 
