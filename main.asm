@@ -78,7 +78,13 @@
             INT 21H
 
             mov AH,01        ; recebe o caracter
-            INT 21h          ;
+            INT 21h
+            cmp AL,'-'
+            JNE NAONEGATIVO   ;Se o primeiro numero for negativo CL = 1
+            int 21h
+            MOV CL,1
+        NAONEGATIVO:
+
             MOV BH,AL        ;E ARMARZENA-LO EM BH "Primeiro numero esta armazenado em BH"
 
             MOV AH,09H       ;Processo de enviar a mensagem para receber o Segundo numero
@@ -86,8 +92,43 @@
             INT 21H
         
             mov AH,01        ; recebe o outro numero "caracter"
-            INT 21h          ;
+            INT 21h
+
+            XOR DX,DX
+            cmp AL,'-'
+            JNE NAONEGATIVO2     ;Se o segundo número for negativo DH = 1
+            int 21h
+            MOV DH,1
+        NAONEGATIVO2:
+            MOV DL,CL           ;Mover CL para Dl
+            PUSH DX            ;Mover DX na pilha (agora a pilha contém os identificadores de negativo)
+                               ;Se XL = 1 primeiro numero negativo" Se XH = 1 segundo numero negativo
+
             MOV BL,AL        ;E ARMAZENA-LO EM BL "segundo numero armazenado em BL"
+
+            mov ax, 3        ;clear screen
+            int 10h
+
+            MOV AH,09H       ;Processo de enviar a mensagem De Resultado
+            LEA DX,Res       
+            INT 21H
+
+            MOV AH,02
+            CMP CL,1             ;Printar "-" se CL = 1 (primeiro número negativo)
+            JNE PRINTNEGATIVO
+            MOV DL,'-'
+            int 21h
+        PRINTNEGATIVO:
+            MOV DL,BH
+
+            int 21h
+
+
+
+
+
+
+
             
 
             cmp CH,"1"
@@ -102,45 +143,91 @@
 
     ;=============== Inicio Do Código Da Operação De Adição ===============
     SOMA:
-        ;Clear screen
-        mov ax, 3
-        int 10h
 
 
-        MOV AH,09H       ;Processo de enviar a mensagem De Resultado
-        LEA DX,Res       ;
-        INT 21H
-
-        ;formação da operação
-        MOV DL,BH   
-        MOV AH,02
-        INT 21H
 
         MOV DL,2BH       ;Imprimir o character +
-        MOV AH,02        ;
         INT 21h          ;
         
+        POP CX           ;CL contém os identificadores de negativo
+        CMP CH,1
+        JNE PRINTNEGATIVO2   ;Se o segundo número é negativo printar "-"
+        MOV DL,'-'
+        int 21h
+        PRINTNEGATIVO2:
         MOV DL,BL
-        MOV AH,02
-        INT 21H
+        int 21h
 
         sub BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
         sub BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
-        ADD BL,BH        ; soma dos dois valores 
 
-        OR  BL,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
+        CMP CL,1
+        JNE NEGATIVBH        ;Se o primeiro numero for negativo (transformar em negativo numeral)
+        NEG BH
+    NEGATIVBH:               
+
+        CMP CH,1
+        JNE NEGATIVBL        ;Se o segundo numero for negativo (transformálo em negativo numeral)
+        NEG BL 
+    NEGATIVBL:
+
+        ADD BL,BH        ; soma dos dois valores
+
+
+
+        
         MOV Dl,3DH       ; imprimir o caracter =
         MOV AH,02
         INT 21h
+
+        CMP BL,0
+        JNL MENORZERO    ;Se o resultado for negativo printar "-" e transformar o resultado de volta para positivo
+        NEG BL
+        MOV DL,'-'
+        int 21h
+    MENORZERO:
+
+        XOR AX,AX           ;Zerar AX
+        MOV CL,10
+        MOV AL,BL
+        DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
+        MOV BH,AH          ;BH = Resto AL = Quociente
+        MOV AH,02
+        CMP AL,0
+        JE NOQUOCSOMA         ;Pular se Quociente = 0
+
+        MOV  DL,AL
+        ADD  DL,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
+        int 21h           ;Imprimir Quociente (primeiro dígito)
+
+       NOQUOCSOMA:
+        MOV DL,BH
+        ADD DL,30h
+        int 21h           ;Imprimir Resto (segundo digito) 
     
-        MOV DL,BL        ; mov o valor a ser imprimido para dl pois a funcao soh le em dl
-        MOV AH,02        ; imprimi o resultado 
-        INT 21h 
         JMP FIM
 
+
+
+
+
     SUBT:
+        MOV DL,2DH       ;Imprimir o character -
+        MOV AH,02        ;
+        int 21h          ;
+
+        POP CX
+        CMP CH,1
+        JNE PRINTNEGATIVO2SUB
+        MOV DL,'-'
+        int 21h
+        PRINTNEGATIVO2SUB:
+        MOV DL,BL
+        int 21h
+
+
         MOV AL,BL
-        MOV CL,BH
+        MOV DL,BH
         CALL PROCSUB
         JMP FIM
 
@@ -155,40 +242,56 @@
     PROCSUB PROC
 
         MOV BL,AL
-        MOV BH,CL
-        ;Clear screen
-        mov ax, 3
-        int 10h
+        MOV BH,DL
 
-        MOV AH,09H       ;Processo de enviar a mensagem De Resultado
-        LEA DX,Res       ;
-        int 21H
-
-        ;formação da operação
-        MOV DL,BH   
-        MOV AH,02
-        int 21h
-
-        MOV DL,2DH       ;Imprimir o character -
-        MOV AH,02        ;
-        int 21h          ;
-        
-        MOV DL,BL
-        MOV AH,02
-        int 21H
 
         SUB BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
         SUB BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
-        SUB BH,BL        ; soma dos dois valores 
 
-        OR  BH,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
+        CMP CL,1
+        JNE NEGATIVBHSUB
+        NEG BH
+    NEGATIVBHSUB:
+
+        CMP CH,1
+        JNE NEGATIVBLSUB
+        NEG BL
+    NEGATIVBLSUB:
+
+        SUB BH,BL        ; subtrai os dois valores
+
         MOV Dl,3DH       ; imprimir o caracter =
         MOV AH,02
         int 21h
-    
-        MOV DL,BH        ; mov o valor a ser imprimido para dl pois a funcao soh le em dl
-        MOV AH,02        ; imprimi o resultado 
-        int 21h 
+
+
+        CMP BH,0
+        JNL MENORZEROSUB
+        NEG BH
+        MOV DL,2DH
+        int 21h
+    MENORZEROSUB: 
+
+
+
+        XOR AX,AX           ;Zerar AX
+        MOV CL,10
+        MOV AL,BH
+        DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
+        MOV BL,AH          ;BL = Resto AL = Quociente
+        MOV AH,02
+        CMP AL,0
+        JE NOQUOCSUB          ;Pular se Quociente = 0
+
+        MOV DL,AL
+        OR  DL,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
+        int 21h           ;Imprimir Quociente (primeiro dígito)
+
+       NOQUOCSUB:
+        MOV DL,BL
+        OR DL,30h
+        int 21h           ;Imprimir Resto (segundo digito) 
+
 
         RET 
 
@@ -196,25 +299,26 @@
            
 
     PROCMULT PROC
-        ;Clear screen
-        mov ax, 3
-        int 10h
-
-        MOV AH,09H       ;Processo de enviar a mensagem De Resultado
-        LEA DX,Res       ;
-        INT 21H
-        ;formação da operação
-        MOV DL,BH        ;Imprimindo o Primeiro numero 
-        MOV AH,02        ;
-        INT 21H          ;
+        
+        POP SI
 
         MOV DL,2AH       ;Imprimir o character *
         MOV AH,02        ;
         INT 21h          ;
 
-        MOV DL,BL        ;Imprimindo o Segundo numero 
-        MOV AH,02        ;
-        INT 21H          ;
+        POP CX
+
+        CMP CH,1
+        JNE PRINTNEGATIVO2MULT
+        MOV DL,'-'
+        int 21h
+        PRINTNEGATIVO2MULT:
+        MOV DL,BL
+        int 21h
+
+        PUSH CX
+
+
         MOV Dl,3DH       ; imprimir o caracter =
         MOV AH,02
         INT 21h
@@ -242,7 +346,9 @@
         ;AL é começa como o segundo digito lido,  a cada ciclo ele é movido Cl vezes par a esquerda
         ;AL é a condição de parada do loop, quando AL = 1 o loop é encerrado
 
-        CONTADOR:       
+        CONTADOR:    
+
+
             
             INC CH               ;CH é o contador de Movimento para esquerda
             SHR AL,CL  
@@ -291,6 +397,14 @@
 
         ;=============== Imprimindo resultado  ===============
         EXIT:
+            
+            POP CX
+
+            CMP CH,CL
+            JE MESMOSINAL
+            MOV DL,'-'
+            int 21h
+        MESMOSINAL:
 
             XOR AX,AX           ;Zerar AX
             MOV CL,10
@@ -309,6 +423,8 @@
             MOV DL,BL
             ADD DL,30h
             int 21h           ;Imprimir Resto (segundo digito) 
+
+        PUSH SI
 
         RET       
 
