@@ -356,7 +356,7 @@
     ;BH:          101 (5)
     ;BL:        x 011 (3)        A cada loop ele irá conferir se BL(segundo dígito) tem 1 como último bit (LSB)
     ;            ----
-    ;             101            Se Bl tem 1 como primeiro bit ele irá adicionar BH (101 no exemplo) em CH
+    ;             101            Se Bl tem 1 como último bit ele irá adicionar BH (101 no exemplo) em CH
     ;            1010            Para simular a adição do "zero" BH será movido para a esquerda
     ;            ----            Para conferir o próximo bit BL será movido para a direita
     ;CH:         1111 (15)       O loop terminará quando BL = 0 (todos os "1s" foram conferidos)
@@ -364,12 +364,12 @@
     ;
         XOR CX,CX
         LOOPMULTIPLICA:
-            TEST BL,01h          ;Testando o último bit
-            JZ PAR
+            SHR BL,1             ;Testando o último bit
+            JNC PAR
             ADD CH,BH            ;Adicionar a BH se último bit de bl = 1
         PAR:
             SHL BH,1             ;Mover para a esquerda para simular a adição do zero na multiplicação
-            SHR BL,1             ;Mover para a direita para que o próximo bit seja conferido
+                                 ;Mover para a direita para que o próximo bit seja conferido
 
         CMP BL,0
         JNZ LOOPMULTIPLICA       ;O loop acaba quando todos o "1s" foram conferidos, ficando em CH o resultado da multiplicação
