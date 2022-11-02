@@ -17,6 +17,8 @@
     num2 DB 10,'Inserir o Segundo numero: ',10,'$'
     Res DB 10,'=== Resultado da Operacao ===',10,'$'
 
+    confirmacao DB 10,' Quer continuar? (S/N)',10,'$'
+
 .code
     
     Imprime_msg macro var1;macro para codigo de impressão 
@@ -47,7 +49,7 @@
     ;=============== Indentificação do Operando ===============
     ;Nessa passagem vamos indentificar se o valor q o usuario colocou é valido para operação
 
-            mov ch,al ; o CH é o identificador de operação no codigo inteiro
+            mov ch,al ; o CH é o verificador de operação no codigo inteiro
 
             cmp ch,"1"
             jz NUM
@@ -67,8 +69,11 @@
     ;=============== Inicialização das msg para receber os Numeros ===============
     ;Nessa etapa vc vai colocar os numeros que seram usados para a operação
     ;Usuario pode escolher digitar numeros de 2 casas, negativos e hexadecimais
+    ;O primeiro e o segundo digito é lido
+    ;O primeiro digito da operação é printado
         NUM:
             ;Clear screen
+            XOR CL,Cl        ;Zerendo Cl, pos será utilizado para verificadores de negativo
             mov ax, 3
             int 10h
             MOV AH,09H       ;Processo de enviar a mensagem para receber o primeiro numero 
@@ -101,10 +106,10 @@
             MOV DH,1
         NAONEGATIVO2:
             MOV DL,CL           ;Mover CL para Dl
-            PUSH DX            ;Mover DX na pilha (agora a pilha contém os identificadores de negativo)
+            PUSH DX            ;Mover DX na pilha (agora a pilha contém os verificadores de negativo)
                                ;Se XL = 1 primeiro numero negativo" Se XH = 1 segundo numero negativo
 
-            MOV BL,AL        ;E ARMAZENA-LO EM BL "segundo numero armazenado em BL"
+            MOV BL,AL          ;ARMAZENAR PRIMEIRO DIGITO EM BL "segundo numero armazenado em BL"
 
             mov ax, 3        ;clear screen
             int 10h
@@ -120,17 +125,9 @@
             int 21h
         PRINTNEGATIVO:
             MOV DL,BH
-
             int 21h
 
-
-
-
-
-
-
             
-
             cmp CH,"1"
             jz SOMA
             cmp CH,"2"
@@ -139,6 +136,12 @@
             jz MULTI
             cmp CH,"4"
             jz SOMA
+
+    ;==== Depois dessa estapa ====
+    ;Na pilha está localizado os verificadores de negativo
+    ;CH tem o número da operação
+    ;BH tem o primeiro digito lido
+    ;Bl tem o segundo digito lido
 
 
     ;=============== Inicio Do Código Da Operação De Adição ===============
@@ -149,13 +152,13 @@
         MOV DL,2BH       ;Imprimir o character +
         INT 21h          ;
         
-        POP CX           ;CL contém os identificadores de negativo
+        POP CX           ;CX contém os verificadores de negativo
         CMP CH,1
         JNE PRINTNEGATIVO2   ;Se o segundo número é negativo printar "-"
         MOV DL,'-'
         int 21h
         PRINTNEGATIVO2:
-        MOV DL,BL
+        MOV DL,BL            ;printar segundo numero
         int 21h
 
         sub BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
@@ -182,10 +185,12 @@
 
         CMP BL,0
         JNL MENORZERO    ;Se o resultado for negativo printar "-" e transformar o resultado de volta para positivo
-        NEG BL
+        NEG BL           ;(não é possível printar negativo diretamente)
         MOV DL,'-'
         int 21h
     MENORZERO:
+
+    ;===Print do resultado (dois dígitos)===
 
         XOR AX,AX           ;Zerar AX
         MOV CL,10
@@ -216,9 +221,11 @@
         MOV AH,02        ;
         int 21h          ;
 
-        POP CX
-        CMP CH,1
-        JNE PRINTNEGATIVO2SUB
+        POP CX           ;Colocando os verificadores de negativo em CX 
+                         ;(CH = 1 primeiro digito negativo, Cl = 1 segundo digito negativo)
+            
+        CMP CH,1       
+        JNE PRINTNEGATIVO2SUB        ;se o segundo numero for negativo printar "-"
         MOV DL,'-'
         int 21h
         PRINTNEGATIVO2SUB:
@@ -226,8 +233,8 @@
         int 21h
 
 
-        MOV AL,BL
-        MOV DL,BH
+        MOV AL,BL                    ;BL e BH estavam sendo estragados quando chamavam a função
+        MOV DL,BH                    ;Por isso mover para Al,DL (no começo da função SUB eles voltam para BH,BL)
         CALL PROCSUB
         JMP FIM
 
@@ -235,27 +242,41 @@
         CALL PROCMULT
         JMP FIM
 
+
+    ;==========  Final do programa  ==========
         FIM:
+            Imprime_msg confirmacao       ;Pergunta se o usuário quer continuar
+            MOV AH,01
+            int 21h
+            cmp AL,53h
+            JNE NAOQUER
+
+            mov ax, 3        ;clear screen
+            int 10h          
+            JMP START        ;Se o usuário digitar S maiúsculo, voltar para o começo
+
+        NAOQUER:
+            
             MOV AH,4CH
             INT 21H 
 
     PROCSUB PROC
 
-        MOV BL,AL
+        MOV BL,AL        
         MOV BH,DL
 
 
         SUB BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
         SUB BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
 
-        CMP CL,1
+        CMP CL,1         
         JNE NEGATIVBHSUB
-        NEG BH
+        NEG BH           ;Se pimeiro numero for negativo, transformar em numeral negativo
     NEGATIVBHSUB:
 
         CMP CH,1
         JNE NEGATIVBLSUB
-        NEG BL
+        NEG BL           ;Se o segundo numero for negativo, transformar em numeral negativo
     NEGATIVBLSUB:
 
         SUB BH,BL        ; subtrai os dois valores
@@ -268,8 +289,8 @@
         CMP BH,0
         JNL MENORZEROSUB
         NEG BH
-        MOV DL,2DH
-        int 21h
+        MOV DL,2DH            ;Se o resultado for negativo, printar "-" e transformar resultado em positivo
+        int 21h               ;(Não é possível printar o resultado negativo diretamente)
     MENORZEROSUB: 
 
 
@@ -299,8 +320,10 @@
            
 
     PROCMULT PROC
+
+    ;=== Printando dígitos ===
         
-        POP SI
+        POP SI           ;Colocando o endereço do CALL em SI (para usar o ret)
 
         MOV DL,2AH       ;Imprimir o character *
         MOV AH,02        ;
@@ -310,13 +333,16 @@
 
         CMP CH,1
         JNE PRINTNEGATIVO2MULT
-        MOV DL,'-'
+        MOV DL,'-'                ;printar '-' se o segundo digito for negativo
         int 21h
         PRINTNEGATIVO2MULT:
-        MOV DL,BL
+        MOV DL,BL                 ;printar segundo dígito
         int 21h
 
-        PUSH CX
+        PUSH CX                   ;Devolvendo verificadores de negativo para a pilha
+
+        SUB BH,30H                 ;Tranformando em numeral
+        SUB BL,30h
 
 
         MOV Dl,3DH       ; imprimir o caracter =
@@ -324,85 +350,40 @@
         INT 21h
         
 
-        ;=============== Começo da Multiplicação ===============
+    ;=============== Começo da Multiplicação ===============
+    ;A Multiplicação funciona como uma multiplicação de binários
+    ;Por Ex
+    ;BH:          101 (5)
+    ;BL:        x 011 (3)        A cada loop ele irá conferir se BL(segundo dígito) tem 1 como último bit (LSB)
+    ;            ----
+    ;             101            Se Bl tem 1 como primeiro bit ele irá adicionar BH (101 no exemplo) em CH
+    ;            1010            Para simular a adição do "zero" BH será movido para a esquerda
+    ;            ----            Para conferir o próximo bit BL será movido para a direita
+    ;CH:         1111 (15)       O loop terminará quando BL = 0 (todos os "1s" foram conferidos)
+    ;
+    ;
+        XOR CX,CX
+        LOOPMULTIPLICA:
+            TEST BL,01h          ;Testando o último bit
+            JZ PAR
+            ADD CH,BH            ;Adicionar a BH se último bit de bl = 1
+        PAR:
+            SHL BH,1             ;Mover para a esquerda para simular a adição do zero na multiplicação
+            SHR BL,1             ;Mover para a direita para que o próximo bit seja conferido
 
-        SUB BH,30H
-        SUB Bl,30H
-        MOV CH,-1        ;reinicializando variaveis de loop
-        XOR CL,CL
-        MOV AL,BL
-        CMP BH,0         ;Se algum número for zero, pular para zero
-        JE ZERO 
         CMP BL,0
-        JE ZERO
-                   
-        ;=============== Contador de casas para a esquerda ===============
-        ;Função:
-        ;Conta quanto casas devem ser movidas para a esquerda do digito multiplicado
-        ;Registradores:
-        ;CH = Indica quantas casas vão ser movidas para esquerda após o loop de contagem
-        ;CL = Flag que indica se há multiplicação por 1 (0 = com multiplcação de 1)(1 = sem multiplicação de 1)
-        ;Cl também indica quantas casas em AL serão movidas durante cada reptição do loop (1 ou zero)
-        ;AL é começa como o segundo digito lido,  a cada ciclo ele é movido Cl vezes par a esquerda
-        ;AL é a condição de parada do loop, quando AL = 1 o loop é encerrado
-
-        CONTADOR:    
-
-
+        JNZ LOOPMULTIPLICA       ;O loop acaba quando todos o "1s" foram conferidos, ficando em CH o resultado da multiplicação
             
-            INC CH               ;CH é o contador de Movimento para esquerda
-            SHR AL,CL  
-
-            CMP CL,0             ;Comparar Cl com 0 caso a multiplicação seja por 1  
-            JNE PULO         
-            INC CL               ;Se não for multiplicação por 1 CL = 1
-            PULO:
-
-            CMP AL,1             ;Quando o número for dividido até ser = 1, sair do verificador
-
-        ;=============== Diferença entre o número movido e o real ===============
-        ;O Movimento para a esquerda só encobre multiplicações com número 2^X (sendo x o número de casas movidas para a esquerda)
-        ;Para outros números é nescessário subtrair multiplicador - 2^X 
-        ;E somar o número multiplicado com si mesmo vezes o resultado da subtração
-        ;Nessa função se a subtração = 0, significando que o multiplicador é 2^X, pula para a impressão do resultado 
-        ;Registradores:
-        ;CL recebe o número de vezes do movimento para a esquerda
-        ;BH = primeiro digito (número multiplicado)
-        ;Bl segundo digito (multiplicador)
-        ;AL = 1
-    
-
-        JNE CONTADOR
-
-            MOV CL,CH            
-            MOV CH,BH           ;CH agora tem o valor inicial de BH           
-            SHL BH,CL           ;Multiplicar BH por 2^CL
-            SHL AL,Cl           ;AL = 2^CL
-            SUB BL,AL           ;Substrair para saber o quanto falta para multiplicar
-            CMP BL,0            ;SE não não falta nada, pular para o final
-            JE EXIT
-        
-        ;LOOP para somar o primeiro digito + primeiro digito * (subtração) 
-        SOMADOR:
-
-            DEC BL              
-            ADD BH,CH           ;BH irá adicionar o valor inicial de BH(BL)
-            CMP BL,0
-            JNE SOMADOR
-            JP EXIT
-
-        ZERO:                   ;Se algum operando for 0          
-            XOR BH,BH           
-
-
+            
         ;=============== Imprimindo resultado  ===============
         EXIT:
-            
-            POP CX
+            MOV BH,CH            ;Movendo resultado para Bl
+            XOR CX,CX
+            POP CX               ;Obtendo os verificadores de negativo
 
             CMP CH,CL
             JE MESMOSINAL
-            MOV DL,'-'
+            MOV DL,'-'           ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
             int 21h
         MESMOSINAL:
 
@@ -424,7 +405,7 @@
             ADD DL,30h
             int 21h           ;Imprimir Resto (segundo digito) 
 
-        PUSH SI
+        PUSH SI               ;Devolvento endereço do CALL para a pilha (para o ret usar)
 
         RET       
 
