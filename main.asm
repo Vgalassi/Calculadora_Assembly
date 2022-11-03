@@ -17,11 +17,13 @@
     num2 DB 10,'Inserir o Segundo numero: ',10,'$'
     Res DB 10,'=== Resultado da Operacao ===',10,'$'
 
+    divisaozero db 10,'ERRO: Divisao por zero',10,'$'
+    restodiv db 10,'Resto: ','$'
     confirmacao DB 10,' Quer continuar? (S/N)',10,'$'
 
 .code
     
-    Imprime_msg macro var1;macro para codigo de impressão 
+    Imprime_msg macro var1   ;macro para codigo de impressão 
     MOV AH, 09h
     LEA DX,var1
     INT 21h
@@ -32,6 +34,11 @@
         MOV DS,AX        ;
     
     start:
+
+        XOR AX,AX
+        XOR BX,BX
+        XOR CX,CX
+
         Imprime_msg MSG1
         
     ;=============== CRIANDO A INTERFACE DA CALCULADORA ===============
@@ -128,30 +135,18 @@
             int 21h
 
             
-            cmp CH,"1"
-            jz SOMA
+            cmp CH,"1"              ;Printa o sinal da operação de acordo com a operação escolhida
+            jz SINALMAIS
             cmp CH,"2"
-            jz SUBT
+            jz SINALMENOS
             cmp CH,"3"
-            jz MULTI
+            jz SINALMULTI
             cmp CH,"4"
-            jz SOMA
+            jz SINALDIV
 
-    ;==== Depois dessa estapa ====
-    ;Na pilha está localizado os verificadores de negativo
-    ;CH tem o número da operação
-    ;BH tem o primeiro digito lido
-    ;Bl tem o segundo digito lido
+    RETORNO:
 
-
-    ;=============== Inicio Do Código Da Operação De Adição ===============
-    SOMA:
-
-
-
-        MOV DL,2BH       ;Imprimir o character +
-        INT 21h          ;
-        
+        MOV DH,CH
         POP CX           ;CX contém os verificadores de negativo
         CMP CH,1
         JNE PRINTNEGATIVO2   ;Se o segundo número é negativo printar "-"
@@ -161,8 +156,109 @@
         MOV DL,BL            ;printar segundo numero
         int 21h
 
+        MOV DL,3DH
+        int 21h
+
         sub BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
         sub BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
+
+        
+        cmp DH,"1"
+        jz SOMA
+        cmp DH,"2"
+        jz SUBT
+        cmp DH,"3"
+        jz MULTI
+        cmp DH,"4"
+        jz DIVIS
+
+        
+    ;==== Depois dessa estapa ====
+    ;Na pilha está localizado os verificadores de negativo
+    ;DH tem o número da operação
+    ;BH tem o primeiro número lido
+    ;Bl tem o segundo número lido
+    ;
+
+    
+    SINALMAIS:
+        MOV DL,2BH       ;Imprimir o character +
+        INT 21h          ;
+        JMP RETORNO
+    
+    SINALMENOS:
+        MOV DL,2DH       ;Imprimir o character -
+        MOV AH,02        ;
+        int 21h          ;
+        jmp RETORNO
+
+    SINALMULTI:
+        MOV DL,2AH       ;Imprimir o character *
+        MOV AH,02        ;
+        int 21h          ;
+        jmp RETORNO
+
+    SINALDIV:
+        MOV DL,2FH       ;Imprimir o character /
+        MOV AH,02        ;
+        int 21h          ;
+        jmp RETORNO
+
+    SOMA:
+        
+        CALL PROCSOMA
+        JMP FIM
+
+    SUBT:
+        MOV AL,BL                    ;BL e BH estavam sendo estragados quando chamavam a função
+        MOV DL,BH                    ;Por isso mover para Al,DL (no começo da função SUB eles voltam para BH,BL)
+        CALL PROCSUB
+        JMP FIM
+
+    MULTI:
+        CALL PROCMULT
+        JMP FIM
+
+    DIVIS:
+        CALL PROCDIV
+        JMP FIM
+
+
+    ;==========  Final do programa  ==========
+        FIM:
+            Imprime_msg confirmacao       ;Pergunta se o usuário quer continuar
+            MOV AH,07
+        VOLtA:
+            int 21h
+            cmp AL,53h
+            JNE NAOQUER
+
+            mov ax, 3        ;clear screen
+            int 10h          
+            JMP START        ;Se o usuário digitar "S", voltar para o começo
+
+        NAOQUER:             
+
+            CMP AL,4EH       ;Se digitar N, terminar o programa
+            JNE VOLTA
+            
+            MOV AH,4CH
+            INT 21H 
+  
+
+    main ENDP
+
+    ;=============== Procedimento de Soma ===============
+    ;Realiza a soma entre dois números e imprime o resultado
+    ;Registradores:
+    ;BH = primeiro número
+    ;BL = segundo número
+    
+
+    ;Como funciona:
+    ;Soma os dois valores utilizando o comando ADD e imprime o resultado
+
+    PROCSOMA proc
 
         CMP CL,1
         JNE NEGATIVBH        ;Se o primeiro numero for negativo (transformar em negativo numeral)
@@ -174,187 +270,75 @@
         NEG BL 
     NEGATIVBL:
 
-        ADD BL,BH        ; soma dos dois valores
+        ADD BH,BL        ; soma dos dois valores
 
 
-
-        
-        MOV Dl,3DH       ; imprimir o caracter =
-        MOV AH,02
-        INT 21h
-
-        CMP BL,0
+        CMP BH,0
         JNL MENORZERO    ;Se o resultado for negativo printar "-" e transformar o resultado de volta para positivo
-        NEG BL           ;(não é possível printar negativo diretamente)
+        NEG BH           ;(não é possível printar negativo diretamente)
         MOV DL,'-'
         int 21h
     MENORZERO:
 
     ;===Print do resultado (dois dígitos)===
 
-        XOR AX,AX           ;Zerar AX
-        MOV CL,10
-        MOV AL,BL
-        DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
-        MOV BH,AH          ;BH = Resto AL = Quociente
-        MOV AH,02
-        CMP AL,0
-        JE NOQUOCSOMA         ;Pular se Quociente = 0
-
-        MOV  DL,AL
-        ADD  DL,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
-        int 21h           ;Imprimir Quociente (primeiro dígito)
-
-       NOQUOCSOMA:
-        MOV DL,BH
-        ADD DL,30h
-        int 21h           ;Imprimir Resto (segundo digito) 
+        CALL impressao_resultado
+        RET
     
-        JMP FIM
+    PROCSOMA endp
 
+    ;=============== Procedimento de subtração ===============
+    ;Realiza a subtração entre dois números e imprime o resultado
+    ;Registradores:
+    ;BH = primeiro número
+    ;BL = segundo número
+    
 
-
-
-
-    SUBT:
-        MOV DL,2DH       ;Imprimir o character -
-        MOV AH,02        ;
-        int 21h          ;
-
-        POP CX           ;Colocando os verificadores de negativo em CX 
-                         ;(CH = 1 primeiro digito negativo, Cl = 1 segundo digito negativo)
-            
-        CMP CH,1       
-        JNE PRINTNEGATIVO2SUB        ;se o segundo numero for negativo printar "-"
-        MOV DL,'-'
-        int 21h
-        PRINTNEGATIVO2SUB:
-        MOV DL,BL
-        int 21h
-
-
-        MOV AL,BL                    ;BL e BH estavam sendo estragados quando chamavam a função
-        MOV DL,BH                    ;Por isso mover para Al,DL (no começo da função SUB eles voltam para BH,BL)
-        CALL PROCSUB
-        JMP FIM
-
-    MULTI:
-        CALL PROCMULT
-        JMP FIM
-
-
-    ;==========  Final do programa  ==========
-        FIM:
-            Imprime_msg confirmacao       ;Pergunta se o usuário quer continuar
-            MOV AH,01
-            int 21h
-            cmp AL,53h
-            JNE NAOQUER
-
-            mov ax, 3        ;clear screen
-            int 10h          
-            JMP START        ;Se o usuário digitar S maiúsculo, voltar para o começo
-
-        NAOQUER:
-            
-            MOV AH,4CH
-            INT 21H 
+    ;Como funciona:
+    ;Subtrai os dois valores utilizando o comando SUB e imprime o resultado
+    
 
     PROCSUB PROC
 
         MOV BL,AL        
         MOV BH,DL
 
-
-        SUB BH,30h       ;Transforma o Primeiro numero "caracter" de BH em numeral
-        SUB BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
-
         CMP CL,1         
         JNE NEGATIVBHSUB
-        NEG BH           ;Se pimeiro numero for negativo, transformar em numeral negativo
+        NEG BH                ;Se primeiro numero for negativo, transformar em numeral negativo
     NEGATIVBHSUB:
 
         CMP CH,1
         JNE NEGATIVBLSUB
-        NEG BL           ;Se o segundo numero for negativo, transformar em numeral negativo
+        NEG BL                ;Se o segundo numero for negativo, transformar em numeral negativo
     NEGATIVBLSUB:
 
-        SUB BH,BL        ; subtrai os dois valores
-
-        MOV Dl,3DH       ; imprimir o caracter =
-        MOV AH,02
-        int 21h
-
+        SUB BH,BL             ;subtrai os dois valores
 
         CMP BH,0
         JNL MENORZEROSUB
         NEG BH
-        MOV DL,2DH            ;Se o resultado for negativo, printar "-" e transformar resultado em positivo
-        int 21h               ;(Não é possível printar o resultado negativo diretamente)
+        MOV DL,2DH             ;Se o resultado for negativo, printar "-" e transformar resultado em positivo
+        int 21h                ;(Não é possível printar o resultado negativo diretamente)
     MENORZEROSUB: 
 
-
-
-        XOR AX,AX           ;Zerar AX
-        MOV CL,10
-        MOV AL,BH
-        DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
-        MOV BL,AH          ;BL = Resto AL = Quociente
-        MOV AH,02
-        CMP AL,0
-        JE NOQUOCSUB          ;Pular se Quociente = 0
-
-        MOV DL,AL
-        OR  DL,30h       ; soma 30 para conseguir ler o numero pois esta em formato caracter explo 2+3=5+35 35-30=5)
-        int 21h           ;Imprimir Quociente (primeiro dígito)
-
-       NOQUOCSUB:
-        MOV DL,BL
-        OR DL,30h
-        int 21h           ;Imprimir Resto (segundo digito) 
-
-
+        CALL impressao_resultado
         RET 
 
     PROCSUB ENDP
-           
 
-    PROCMULT PROC
-
-    ;=== Printando dígitos ===
-        
-        POP SI           ;Colocando o endereço do CALL em SI (para usar o ret)
-
-        MOV DL,2AH       ;Imprimir o character *
-        MOV AH,02        ;
-        INT 21h          ;
-
-        POP CX
-
-        CMP CH,1
-        JNE PRINTNEGATIVO2MULT
-        MOV DL,'-'                ;printar '-' se o segundo digito for negativo
-        int 21h
-        PRINTNEGATIVO2MULT:
-        MOV DL,BL                 ;printar segundo dígito
-        int 21h
-
-        PUSH CX                   ;Devolvendo verificadores de negativo para a pilha
-
-        SUB BH,30H                 ;Tranformando em numeral
-        SUB BL,30h
-
-
-        MOV Dl,3DH       ; imprimir o caracter =
-        MOV AH,02
-        INT 21h
-        
-
-    ;=============== Começo da Multiplicação ===============
-    ;A Multiplicação funciona como uma multiplicação de binários
+    ;=============== Procedimento Multiplicação ===============
+    ;Multiplica dois número e imprime o resultado
+    ;A Multiplicação tem em base as multiplicação de binários
+    ;Registradores:
+    ;BH = primeiro número
+    ;BL = segundo  número
+    ;CH = resultado multiplicação
+    
+    ;Como funciona:
     ;Por Ex
     ;BH:          101 (5)
-    ;BL:        x 011 (3)        A cada loop ele irá conferir se BL(segundo dígito) tem 1 como último bit (LSB)
+    ;BL:        x 011 (3)        A cada loop ele irá conferir se BL(segundo número) tem 1 como último bit (LSB)
     ;            ----
     ;             101            Se Bl tem 1 como último bit ele irá adicionar BH (101 no exemplo) em CH
     ;            1010            Para simular a adição do "zero" BH será movido para a esquerda
@@ -362,6 +346,14 @@
     ;CH:         1111 (15)       O loop terminará quando BL = 0 (todos os "1s" foram conferidos)
     ;
     ;
+    ;Após fazer a multiplicação a impressão do resultado será realizada
+
+    PROCMULT PROC
+
+        POP SI           ;Colocando o endereço do CALL em SI (para usar o ret)
+        PUSH CX          ;Colocando identificadores de negativo de volta para pilha
+
+
         XOR CX,CX
         LOOPMULTIPLICA:
             SHR BL,1             ;Testando o último bit
@@ -377,42 +369,148 @@
             
         ;=============== Imprimindo resultado  ===============
         EXIT:
-            MOV BH,CH            ;Movendo resultado para Bl
+            MOV BH,CH                ;Movendo resultado para Bl
             XOR CX,CX
-            POP CX               ;Obtendo os verificadores de negativo
+            POP CX                   ;Obtendo os verificadores de negativo
 
             CMP CH,CL
             JE MESMOSINAL
-            MOV DL,'-'           ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
+            MOV DL,'-'               ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
             int 21h
         MESMOSINAL:
 
-            XOR AX,AX           ;Zerar AX
-            MOV CL,10
-            MOV AL,BH
-            DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
-            MOV BL,AH          ;BL = Resto AL = Quociente
-            MOV AH,02
-            CMP AL,0
-            JE NOQUOC          ;Pular se Quociente = 0
-
-            MOV DL,AL
-            ADD DL,30h
-            int 21h           ;Imprimir Quociente (primeiro dígito)
-
-        NOQUOC:
-            MOV DL,BL
-            ADD DL,30h
-            int 21h           ;Imprimir Resto (segundo digito) 
-
-        PUSH SI               ;Devolvento endereço do CALL para a pilha (para o ret usar)
-
+        CALL impressao_resultado
+        PUSH SI                      ;Devolvento endereço do CALL para a pilha (para o ret usar)
         RET       
 
-        PROCMULT ENDP
+    PROCMULT ENDP
 
-        main ENDP
-        END main
+
+    ;=============== Procedimento de divisão ===============
+    ;Realiza a divisão ente dois números e imprime o resultado 
+    ;A divisão tem em base a divisão de números binários
+
+    ;Registradores:
+    ;CL = resto
+    ;CH = dividento (passado de BH) 
+    ;BH = dividendo
+    ;Bl = divisor
+    ;AL = quociente
+    ;AH = contador de rotações
+
+    ;Como funciona:
+    ;A cada ciclo o bit mais significativo de CH(dividendo) se torna bit menos significativo de CL (rotação para a esquerda)
+    ;Se Cl for maior do que o divisor, a subtração Cl - Divisor será realizada) e o bit menos significativo de AL será = 1
+    ;Se Cl for menor do que o divisor o bit menos significativo de AL será = 0
+    ;O loop termina quando AH = 8, (todos os bits do dígito que estava em CH, foram para CL)
+
+    ;Após realizar a divisão a impressão do quociente e do resto será realizada
+
+    PROCDIV proc
+
+
+        POP SI                          ;Colocando o endereço do CALL em SI (para usar o ret)
+        PUSH CX                         ;Devolvendo verificadores de negativo para a pilha
+
+        CMP BL,0
+        JNZ DIVISAOSEMZERO              ; Se o divisor for zero, imprimir mensagem de erro e pular para o final do programa
+        Imprime_msg divisaozero
+        JMP FIMDIV
+
+    DIVISAOSEMZERO:
+        XOR CX,CX
+        MOV CH,BH     
+        XOR AX,AX
+        
+    LOOPDIVISAO:
+
+        ROL CX,01h                      ;Passar o MSB de CH para CL
+        INC AH                          ;AH = contador de rotações
+        SHL AL,1                        ;AL = quociente, mover AL para a esquerda para "dar espaço"       
+        CMP CL,BL
+
+        JL MENORDIV
+            OR AL,01h                   ;Se o CL (dividendo) for maior que o divisor, adicionar 1 ao LSB do quociente
+            SUB CL,BL                   ;Subtrair dividendo - divisor
+        MENORDIV:
+
+        CMP AH,8                        ;Quando AH = 8 o loop acaba
+    JNE LOOPDIVISAO
+
+
+    ;=============== Imprimindo Resultado ===============
+        MOV BL,CL            ;BL = contém o resto
+        MOV BH,AL            ;Bh = contém o quociente
+
+        XOR CX,CX
+        POP CX               ;Obtendo os verificadores de negativo
+
+        MOV AH,02
+        CMP CH,CL
+        JE MESMOSINALDIV
+            MOV DL,'-'           ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
+            int 21h
+        MESMOSINALDIV:
+
+        MOV DL,BH
+        ADD DL,30h
+        int 21h
+
+        Imprime_msg restodiv      ;imprimindo mensagem de resto
+
+        MOV AH,02
+        CMP CH,CL
+        JE MESMOSINALDIVR
+            MOV DL,'-'           ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
+            int 21h
+        MESMOSINALDIVR:
+        
+        MOV DL,BL                ;Imprimindo o resto
+        ADD DL,30H
+        int 21h
+        
+    FIMDIV:
+        PUSH SI
+        RET 
+
+    PROCDIV ENDP
+
+    ;=============== Procedimento de impresão de resultado =============== 
+    ;Imprime o valor que está em BH (até dois dígitos)
+    ;Registradores:
+    ;BH = valor que será impresso
+    ;AL = quociente de divisão (primeiro dígito de BH)
+    ;BL = resto da divisão (segundo dígito de BH)
+
+    ;Como funciona:
+    ;Será realizado uma divisão por 10 de BH e será impresso o resto e o quociente
+    ;Se o quociente for zero, só será impresso o resto
+
+    impressao_resultado proc
+
+        XOR AX,AX           ;Zerar AX
+        MOV CL,10
+        MOV AL,BH
+        DIV CL             ;Dividir o resultado por 10 para printar 2 digitos
+        MOV BL,AH          ;BL = Resto AL = Quociente
+        MOV AH,02
+        CMP AL,0
+        JE NOQUOC          ;Pular se Quociente = 0
+
+        MOV DL,AL
+        ADD DL,30h
+        int 21h           ;Imprimir Quociente (primeiro dígito)
+
+    NOQUOC:
+        MOV DL,BL
+        ADD DL,30h
+        int 21h           ;Imprimir Resto (segundo digito) 
+
+        ret
+
+    impressao_resultado endp
+
+    END main
 
 
 
