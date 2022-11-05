@@ -1,3 +1,4 @@
+TITLE Gabriel Hideki Yamamoto 22003967 Vinicius Henrique Galassi 22005768
 .model small
 .stack 5h
 .data
@@ -68,10 +69,10 @@
             jz NUM
 
             erro:
-            
-            ;printaa a frase avisando o erro 
 
-            Imprime_msg error
+            mov ax, 3        ;clear screen
+            int 10h
+            Imprime_msg error  ;printa a frase avisando o erro 
             jmp start   
     ;=============== Inicialização das msg para receber os Numeros ===============
     ;Nessa etapa vc vai colocar os numeros que seram usados para a operação
@@ -79,16 +80,12 @@
     ;O primeiro e o segundo digito é lido
     ;O primeiro digito da operação é printado
         NUM:
-            ;Clear screen
-            XOR CL,Cl        ;Zerendo Cl, pos será utilizado para verificadores de negativo
+            XOR CL,Cl        ;Zerando Cl, pois será utilizado para verificadores de negativo
             mov ax, 3
             int 10h
-            MOV AH,09H       ;Processo de enviar a mensagem para receber o primeiro numero 
-            LEA DX,calc      ;Mensagem para receber os numero
-            INT 21H          ;
-            LEA DX,num1
-            INT 21H
-
+            Imprime_msg calc
+            Imprime_msg num1
+        RETORNOERRADO:
             mov AH,01        ; recebe o caracter
             INT 21h
             cmp AL,'-'
@@ -97,12 +94,23 @@
             MOV CL,1
         NAONEGATIVO:
 
-            MOV BH,AL        ;E ARMARZENA-LO EM BH "Primeiro numero esta armazenado em BH"
+            cmp AL,30h
+            JL INPUTERRADO    ;Conferindo se input é um número (entre 30h e 39h)
+            cmp AL,39h
+            JG INPUTERRADO
+            JMP CORRETO
 
-            MOV AH,09H       ;Processo de enviar a mensagem para receber o Segundo numero
-            LEA DX,num2
-            INT 21H
+            INPUTERRADO:
+            MOV AH,02           ;Se não for um número imprimir backspace e voltar para a leitura
+            MOV DL,08
+            int 21H
+            JMP RETORNOERRADO
+        CORRETO:
+
+            MOV BH,AL        ;E ARMARZENA-LO EM BH "Primeiro numero esta armazenado em BH"
+            Imprime_msg num2
         
+        RETORNOERRADO2:
             mov AH,01        ; recebe o outro numero "caracter"
             INT 21h
 
@@ -112,7 +120,19 @@
             int 21h
             MOV DH,1
         NAONEGATIVO2:
-            MOV DL,CL           ;Mover CL para Dl
+            cmp AL,30h
+            JL INPUTERRADO2
+            cmp AL,39h               ;Conferindo se input é um número (entre 30h e 39h)
+            JG INPUTERRADO2
+            JMP CORRETO2
+        INPUTERRADO2:
+            MOV AH,02
+            MOV DL,08                 ;Se não for um número imprimir backspace e voltar para a leitura
+            int 21H
+            JMP RETORNOERRADO2
+        CORRETO2:
+
+            MOV DL,CL          ;Mover CL para Dl
             PUSH DX            ;Mover DX na pilha (agora a pilha contém os verificadores de negativo)
                                ;Se XL = 1 primeiro numero negativo" Se XH = 1 segundo numero negativo
 
@@ -121,9 +141,7 @@
             mov ax, 3        ;clear screen
             int 10h
 
-            MOV AH,09H       ;Processo de enviar a mensagem De Resultado
-            LEA DX,Res       
-            INT 21H
+            Imprime_msg num2
 
             MOV AH,02
             CMP CL,1             ;Printar "-" se CL = 1 (primeiro número negativo)
@@ -145,8 +163,8 @@
             jz SINALDIV
 
     RETORNO:
-
-        MOV DH,CH
+ 
+        MOV DH,CH        ;DH contém a operação realizada
         POP CX           ;CX contém os verificadores de negativo
         CMP CH,1
         JNE PRINTNEGATIVO2   ;Se o segundo número é negativo printar "-"
@@ -163,7 +181,7 @@
         sub BL,30h       ;Transforma o Segundo numero "caracter" de BL em numeral
 
         
-        cmp DH,"1"
+        cmp DH,"1"       
         jz SOMA
         cmp DH,"2"
         jz SUBT
@@ -204,14 +222,11 @@
         int 21h          ;
         jmp RETORNO
 
-    SOMA:
-        
+    SOMA:                ;Chamando as funções das suas devidas operações
         CALL PROCSOMA
         JMP FIM
 
     SUBT:
-        MOV AL,BL                    ;BL e BH estavam sendo estragados quando chamavam a função
-        MOV DL,BH                    ;Por isso mover para Al,DL (no começo da função SUB eles voltam para BH,BL)
         CALL PROCSUB
         JMP FIM
 
@@ -300,8 +315,6 @@
 
     PROCSUB PROC
 
-        MOV BL,AL        
-        MOV BH,DL
 
         CMP CL,1         
         JNE NEGATIVBHSUB
@@ -328,8 +341,8 @@
     PROCSUB ENDP
 
     ;=============== Procedimento Multiplicação ===============
-    ;Multiplica dois número e imprime o resultado
-    ;A Multiplicação tem em base as multiplicação de binários
+    ;Multiplica dois números e imprime o resultado
+    ;A Multiplicação tem em base a multiplicação de binário
     ;Registradores:
     ;BH = primeiro número
     ;BL = segundo  número
@@ -387,7 +400,7 @@
 
 
     ;=============== Procedimento de divisão ===============
-    ;Realiza a divisão ente dois números e imprime o resultado 
+    ;Realiza a divisão entre dois números e imprime o resultado 
     ;A divisão tem em base a divisão de números binários
 
     ;Registradores:
@@ -404,10 +417,9 @@
     ;Se Cl for menor do que o divisor o bit menos significativo de AL será = 0
     ;O loop termina quando AH = 8, (todos os bits do dígito que estava em CH, foram para CL)
 
-    ;Após realizar a divisão a impressão do quociente e do resto será realizada
+    ;Após realizar a divisão, a impressão do quociente e do resto será realizada
 
     PROCDIV proc
-
 
         POP SI                          ;Colocando o endereço do CALL em SI (para usar o ret)
         PUSH CX                         ;Devolvendo verificadores de negativo para a pilha
@@ -461,10 +473,13 @@
         MOV AH,02
         CMP CH,CL
         JE MESMOSINALDIVR
+        CMP BL,0
+        JE RESTOZERO
             MOV DL,'-'           ;Se os dígitos lidos tiverem sinais diferentes, printar "-"
             int 21h
         MESMOSINALDIVR:
         
+    RESTOZERO:
         MOV DL,BL                ;Imprimindo o resto
         ADD DL,30H
         int 21h
@@ -475,7 +490,7 @@
 
     PROCDIV ENDP
 
-    ;=============== Procedimento de impresão de resultado =============== 
+    ;=============== Procedimento de impressão de resultado =============== 
     ;Imprime o valor que está em BH (até dois dígitos)
     ;Registradores:
     ;BH = valor que será impresso
@@ -512,20 +527,3 @@
 
     END main
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-       
-        
-            
-        
