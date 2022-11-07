@@ -1,4 +1,4 @@
-# Assembly_Calculator
+# Calculadora_Assembly
 
 ## Introdução
 Este projeto foi desenvolvido no segundo semestre na diciplina de Organização de Sistemas Computacionais . Seu objetivo
