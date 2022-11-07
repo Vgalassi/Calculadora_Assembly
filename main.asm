@@ -141,9 +141,15 @@ TITLE Gabriel Hideki Yamamoto 22003967 Vinicius Henrique Galassi 22005768
             mov ax, 3        ;clear screen
             int 10h
 
-            Imprime_msg num2
+            Imprime_msg Res
 
-            MOV AH,02
+            
+
+            MOV AH,02            
+
+            MOV DL,32            ;print espaço
+            int 21h         
+
             CMP CL,1             ;Printar "-" se CL = 1 (primeiro número negativo)
             JNE PRINTNEGATIVO
             MOV DL,'-'
